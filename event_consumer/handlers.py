@@ -201,8 +201,10 @@ class AMQPRetryHandler(object):
                  routing_key,  # type: str
                  queue,  # type: str
                  exchange,  # type: str
-                 func,  # type: Callable[[Any], Any]
-                 backoff_func=None  # type: Optional[Callable[[int], float]]
+                 func,  # type: Callable[[Any], Any, kombu.Message]
+                 backoff_func=None,  # type: Optional[Callable[[int], float]],
+                 auto_delete=False,  # type: bool
+                 durable=True  # type: bool
                  ):
         # type: (...) -> None
         self.channel = channel
@@ -211,6 +213,8 @@ class AMQPRetryHandler(object):
         self.exchange = exchange  # `settings.EXCHANGES` config key
         self.func = func
         self.backoff_func = backoff_func or self.backoff
+        self._auto_delete = auto_delete
+        self._durable = durable
 
         self.exchanges = {
             DEFAULT_EXCHANGE: kombu.Exchange(channel=self.channel)
@@ -228,6 +232,8 @@ class AMQPRetryHandler(object):
                 exchange=self.exchanges[exchange],
                 routing_key=self.routing_key,
                 channel=self.channel,
+                auto_delete=self._auto_delete,
+                durable=self._durable
             )
 
             self.retry_queue = kombu.Queue(
@@ -241,6 +247,8 @@ class AMQPRetryHandler(object):
                     "x-dead-letter-routing-key": self.queue,
                 },
                 channel=self.channel,
+                auto_delete=self._auto_delete,
+                durable=self._durable
             )
 
             self.archive_queue = kombu.Queue(
@@ -253,6 +261,8 @@ class AMQPRetryHandler(object):
                     "x-queue-mode": "lazy",  # Keep messages on disk (reqs. rabbitmq 3.6.0+)
                 },
                 channel=self.channel,
+                auto_delete=self._auto_delete,
+                durable=self._durable
             )
         except KeyError as key_exc:
             raise NoExchange(
@@ -306,7 +316,7 @@ class AMQPRetryHandler(object):
                 self.routing_key,
                 retry_count,
             ))
-            self.func(body)
+            self.func(body, message)
 
         except Exception as e:
             if isinstance(e, PermanentFailure):
