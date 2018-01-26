@@ -181,6 +181,8 @@ class AMQPRetryConsumerStep(bootsteps.StartStopStep):
                 queue_registration.exchange,
                 func,
                 backoff_func=settings.BACKOFF_FUNC,
+                auto_delete=settings.QUEUE_AUTO_DELETE,
+                durable=settings.QUEUE_DURABLE
             )
             for queue_registration, func in self._tasks.items()
         ]
